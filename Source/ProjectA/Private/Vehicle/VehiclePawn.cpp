@@ -8,6 +8,13 @@
 
 #include "ChaosWheeledVehicleMovementComponent.h"
 
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputActionValue.h"
+
+/*
+ * Common Vehicle Functionality
+ */
 AVehiclePawn::AVehiclePawn()
 {
 	InitializeMesh();
@@ -74,4 +81,47 @@ void AVehiclePawn::CameraUpdate(float Delta)
 float AVehiclePawn::GetCurrentSpeed()
 {
 	return MovementComponent->GetForwardSpeed() * 0.036;
+}
+
+/*
+ * Player Input Handling
+ */
+void AVehiclePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		EnhancedInputComponent->BindAction(InputActions.ThrottleAction, ETriggerEvent::Triggered, this, &AVehiclePawn::OnThrottleAction);
+		EnhancedInputComponent->BindAction(InputActions.ThrottleAction, ETriggerEvent::Completed, this, &AVehiclePawn::OnThrottleAction);
+
+		EnhancedInputComponent->BindAction(InputActions.BrakeAction, ETriggerEvent::Triggered, this, &AVehiclePawn::OnBrakeAction);
+		EnhancedInputComponent->BindAction(InputActions.BrakeAction, ETriggerEvent::Completed, this, &AVehiclePawn::OnBrakeAction);
+
+		EnhancedInputComponent->BindAction(InputActions.HandbrakeAction, ETriggerEvent::Triggered, this, &AVehiclePawn::OnHandbrakeAction);
+		EnhancedInputComponent->BindAction(InputActions.HandbrakeAction, ETriggerEvent::Completed, this, &AVehiclePawn::OnHandbrakeAction);
+	
+		EnhancedInputComponent->BindAction(InputActions.SteeringAction, ETriggerEvent::Triggered, this, &AVehiclePawn::OnSteeringAction);
+		EnhancedInputComponent->BindAction(InputActions.SteeringAction, ETriggerEvent::Completed, this, &AVehiclePawn::OnSteeringAction);
+	}
+}
+
+void AVehiclePawn::OnThrottleAction(const FInputActionValue& Value)
+{
+	MovementComponent->SetThrottleInput(Value.Get<float>());
+}
+
+void AVehiclePawn::OnBrakeAction(const FInputActionValue& Value)
+{
+	MovementComponent->SetBrakeInput(Value.Get<float>());
+}
+
+void AVehiclePawn::OnHandbrakeAction(const FInputActionValue& Value)
+{
+	MovementComponent->SetHandbrakeInput(Value.Get<float>() >= 0.5f);
+}
+
+void AVehiclePawn::OnSteeringAction(const FInputActionValue& Value)
+{
+	MovementComponent->SetSteeringInput(Value.Get<float>());
 }

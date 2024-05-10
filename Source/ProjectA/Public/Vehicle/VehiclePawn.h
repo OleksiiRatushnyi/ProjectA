@@ -58,6 +58,14 @@ public:
 
 	float GetCurrentSpeed();
 
+	// Player Input Handling
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+	void OnThrottleAction(const FInputActionValue& Value);
+	void OnBrakeAction(const FInputActionValue& Value);
+	void OnHandbrakeAction(const FInputActionValue& Value);
+	void OnSteeringAction(const FInputActionValue& Value);
+
 protected:
 	UPROPERTY(EditDefaultsOnly)
 	TObjectPtr<USpringArmComponent> SpringArm;
