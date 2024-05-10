@@ -11,6 +11,31 @@ class UCameraComponent;
 
 class UChaosWheeledVehicleMovementComponent;
 
+class UInputAction;
+struct FInputActionValue;
+
+/*
+ * The FInputActions structure contains a set of properties that define input actions
+ * for the player to control a vehicle
+ */
+USTRUCT(BlueprintType)
+struct FInputActions
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UInputAction> ThrottleAction;
+	
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UInputAction> BrakeAction;
+
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UInputAction> HandbrakeAction;
+
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UInputAction> SteeringAction;
+};
+
 /*
  * Base class for a vehicle
  */
@@ -42,4 +67,7 @@ protected:
 
 private:
 	TObjectPtr<UChaosWheeledVehicleMovementComponent> MovementComponent;
+
+	UPROPERTY(EditDefaultsOnly)
+	FInputActions InputActions;
 };
