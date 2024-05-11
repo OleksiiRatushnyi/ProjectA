@@ -84,6 +84,8 @@ public:
 	void InitializeSpringArm();
 	void InitializeCamera();
 	void InitializeMovementComponent();
+	void InitializeFrontPoint();
+	FVector GetFrontOfVehicle();
 
 	virtual void Tick(float Delta) override;
 	void ApplyAngularDamping();
@@ -101,6 +103,10 @@ public:
 
 	// Action processing for AI
 	FAISettings GetAISettings() { return AISettings; }
+
+	void OnThrottleAction(float Value);
+	void OnBrakeAction(float Value);
+	void OnSteeringAction(float Value);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly)
@@ -108,6 +114,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly)
 	TObjectPtr<UCameraComponent> Camera;
+
+	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<USceneComponent> FrontPoint;
 
 private:
 	TObjectPtr<UChaosWheeledVehicleMovementComponent> MovementComponent;

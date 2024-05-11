@@ -21,6 +21,7 @@ AVehiclePawn::AVehiclePawn()
 	InitializeSpringArm();
 	InitializeCamera();
 	InitializeMovementComponent();
+	InitializeFrontPoint();
 }
 
 void AVehiclePawn::InitializeMesh() const
@@ -53,6 +54,17 @@ void AVehiclePawn::InitializeCamera()
 void AVehiclePawn::InitializeMovementComponent()
 {
 	MovementComponent = CastChecked<UChaosWheeledVehicleMovementComponent>(GetVehicleMovement());
+}
+
+void AVehiclePawn::InitializeFrontPoint()
+{
+	FrontPoint = CreateDefaultSubobject<USceneComponent>(TEXT("FrontPoint"));
+	FrontPoint->SetupAttachment(RootComponent);
+}
+
+FVector AVehiclePawn::GetFrontOfVehicle()
+{
+	return FrontPoint->GetComponentLocation();
 }
 
 void AVehiclePawn::Tick(float Delta)
@@ -124,4 +136,22 @@ void AVehiclePawn::OnHandbrakeAction(const FInputActionValue& Value)
 void AVehiclePawn::OnSteeringAction(const FInputActionValue& Value)
 {
 	MovementComponent->SetSteeringInput(Value.Get<float>());
+}
+
+/*
+ * Action processing for AI
+ */
+void AVehiclePawn::OnThrottleAction(float Value)
+{
+	MovementComponent->SetThrottleInput(Value);
+}
+
+void AVehiclePawn::OnBrakeAction(float Value)
+{
+	MovementComponent->SetBrakeInput(Value);
+}
+
+void AVehiclePawn::OnSteeringAction(float Value)
+{
+	MovementComponent->SetSteeringInput(Value);
 }
