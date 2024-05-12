@@ -73,6 +73,7 @@ void AVehicleAIController::Tick(float DeltaSeconds)
 	auto [Throttle, Brake] = CalculateThrottleAndBrake(CalculateTopSpeed());
 	ControlledVehicle->OnThrottleAction(Throttle);
 	ControlledVehicle->OnBrakeAction(Brake);
+	CheckForOvertakes();
 }
 
 float AVehicleAIController::CalculateSteering() const
@@ -123,6 +124,11 @@ float AVehicleAIController::CalculateBrakeIntensity(float TopSpeed) const
 
 float AVehicleAIController::CalculateTopSpeed() const
 {
+	if(IsOverrideTopSpeed)
+	{
+		return OverrideTopSpeed;
+	}
+	
 	const float AdditionalDistance = GetAdditionalDistanceForTopSpeed(ControlledVehicle->GetAISettings().SpeedRangeForTopSpeed,
 		ControlledVehicle->GetAISettings().DistanceRangeForTopSpeed);
 	const FRotator ClosestPointToTheSpline = GetClosestPointToTheSpline(AdditionalDistance);
@@ -143,3 +149,41 @@ float AVehicleAIController::GetTopSpeed(FVector2D AngleRangeForTopSpeed, FVector
 	return FMath::GetMappedRangeValueClamped(AngleRangeForTopSpeed, TopSpeedRange,
 		FMath::Abs(AngleOfSteering.Yaw));
 }
+
+void AVehicleAIController::CheckForOvertakes() 
+{
+	const FHitResult FrontHitResult = GetFrontHitResult();
+	ProcessFrontHit(FrontHitResult);
+}
+
+FHitResult AVehicleAIController::GetFrontHitResult()
+{
+	FHitResult FrontHitResult;
+	FVector StartLocation = ControlledVehicle->GetFrontOfVehicle();
+	FVector EndLocation = StartLocation + ControlledVehicle->GetActorForwardVector() * DetectionDistance;
+
+	FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, 180.0f, 180.0f));
+	
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+	GetWorld()->SweepSingleByObjectType(FrontHitResult, StartLocation, EndLocation, FQuat::Identity,
+		FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+	
+	return FrontHitResult;
+}
+
+void AVehicleAIController::ProcessFrontHit(const FHitResult& FrontHitResult)
+{
+	if (FrontHitResult.bBlockingHit && FrontHitResult.GetActor()->IsA<AVehiclePawn>())
+	{
+		AVehiclePawn* VehicleInFront = Cast<AVehiclePawn>(FrontHitResult.GetActor());
+		OverrideTopSpeed = VehicleInFront->GetCurrentSpeed();
+		IsOverrideTopSpeed = true;
+	}
+	else
+	{
+		IsOverrideTopSpeed = false;
+	}
+}
+

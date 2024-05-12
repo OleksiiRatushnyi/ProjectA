@@ -35,6 +35,11 @@ public:
 	float CalculateTopSpeed() const;
 	float GetAdditionalDistanceForTopSpeed(FVector2D SpeedRangeForTopSpeed, FVector2D DistanceRangeForTopSpeed) const;
 	static float GetTopSpeed(FVector2D AngleRangeForTopSpeed, FVector2D TopSpeedRange, const FRotator& AngleOfSteering);
+
+	void CheckForOvertakes(); 
+	FHitResult GetFrontHitResult();
+	void ProcessFrontHit(const FHitResult& FrontHitResult);
+
 	
 private:
 	TWeakObjectPtr<AVehiclePawn> ControlledVehicle;
@@ -45,4 +50,9 @@ private:
 	TObjectPtr<USplineComponent> Path;
 	
 	int32 SideOfRoad;
+	
+	float DetectionDistance = 500.0f;
+	
+	bool IsOverrideTopSpeed;
+	float OverrideTopSpeed;
 };
