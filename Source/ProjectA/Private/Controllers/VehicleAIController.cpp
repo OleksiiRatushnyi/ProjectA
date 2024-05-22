@@ -1,0 +1,247 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#include "Controllers/VehicleAIController.h"
+
+#include "Components/SplineComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
+
+DEFINE_LOG_CATEGORY(LogAIController);
+
+void AVehicleAIController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	InitializeControlledVehicle();
+	InitializePath();
+	CalculateStartingSideOfRoad();
+}
+
+void AVehicleAIController::InitializeControlledVehicle()
+{
+	ControlledVehicle = Cast<AVehiclePawn>(GetPawn());
+}
+
+void AVehicleAIController::InitializePath()
+{
+	if (const AActor* SplineActor = UGameplayStatics::GetActorOfClass(GetWorld(), Spline))
+	{
+		Path = SplineActor->FindComponentByClass<USplineComponent>();
+
+		// Checking for the presence of the USplineComponent component
+		if (!Path)
+		{
+			UE_LOG(LogAIController, Warning, TEXT("Failed to find USplineComponent"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogAIController, Warning, TEXT("Failed to find BP_AIPath actor"));
+	}
+}
+
+int AVehicleAIController::CalculateStartingSideOfRoad()
+{
+	const float LeftSideDistance = FVector::Distance(GetClosestLocationToPath(ControlledVehicle->GetActorLocation(),
+		0.0f, 0), ControlledVehicle->GetActorLocation());
+	const float RightSideDistance = FVector::Distance(GetClosestLocationToPath(ControlledVehicle->GetActorLocation(),
+		0.0f, 1), ControlledVehicle->GetActorLocation());
+	return LeftSideDistance > RightSideDistance ? SideOfRoad = 1 : SideOfRoad = 0;
+}
+
+FVector AVehicleAIController::GetClosestLocationToPath(const FVector& AILocation, float AdditionalDistance,
+                                                       int32 SideOfRoadParam) const
+{
+	// Checking for the presence of the USplineComponent component
+	if (Path)
+	{
+		const int SideOffset = SideOfRoadParam ? 300 : -300;
+		const float Distance = Path->GetDistanceAlongSplineAtLocation(AILocation, ESplineCoordinateSpace::World);
+		const FVector RightVector = Path->GetRightVectorAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+		return Path->GetLocationAtDistanceAlongSpline(Distance + AdditionalDistance, ESplineCoordinateSpace::World) + RightVector * SideOffset;
+	}
+	
+	UE_LOG(LogAIController, Warning, TEXT("Failed to find USplineComponent"));
+	return FVector::ZeroVector; // Return a default value (zero vector) if Path is null
+}
+
+void AVehicleAIController::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	ControlledVehicle->OnSteeringAction(CalculateSteering());
+	auto [Throttle, Brake] = CalculateThrottleAndBrake(CalculateTopSpeed());
+	ControlledVehicle->OnThrottleAction(Throttle);
+	ControlledVehicle->OnBrakeAction(Brake);
+	CheckForOvertakes();
+}
+
+float AVehicleAIController::CalculateSteering() const
+{
+	const float AdditionalDistance = GetAdditionalDistanceForSteering(ControlledVehicle->GetAISettings().SpeedRangeForSteering,
+		ControlledVehicle->GetAISettings().DistanceRangeForSteering);
+	const FRotator ClosestPointToTheSpline = GetClosestPointToTheSpline(AdditionalDistance);
+	const FRotator AngleOfSteering = GetAngleOfSteering(ClosestPointToTheSpline);
+	return GetSteeringInput(ControlledVehicle->GetAISettings().AngleRangeForSteering, ControlledVehicle->GetAISettings().SteeringInputRange,
+		AngleOfSteering);
+}
+
+float AVehicleAIController::GetAdditionalDistanceForSteering(FVector2D SpeedRangeForSteering,
+	FVector2D DistanceRangeForSteering) const
+{
+	return FMath::GetMappedRangeValueClamped(SpeedRangeForSteering, DistanceRangeForSteering,
+		ControlledVehicle->GetCurrentSpeed());
+}
+
+FRotator AVehicleAIController::GetClosestPointToTheSpline(float AdditionalDistance) const
+{
+	return UKismetMathLibrary::FindLookAtRotation(ControlledVehicle->GetFrontOfVehicle(),
+	GetClosestLocationToPath(ControlledVehicle->GetFrontOfVehicle(), AdditionalDistance, SideOfRoad));
+}
+
+FRotator AVehicleAIController::GetAngleOfSteering(const FRotator& ClosestPointToTheSpline) const
+{
+	return UKismetMathLibrary::NormalizedDeltaRotator(ClosestPointToTheSpline, ControlledVehicle->GetActorRotation());
+}
+
+float AVehicleAIController::GetSteeringInput(FVector2D AngleRangeForSteering, FVector2D SteeringInputRange,
+	const FRotator& AngleOfSteering)
+{
+	return FMath::GetMappedRangeValueClamped(AngleRangeForSteering, SteeringInputRange, AngleOfSteering.Yaw);
+}
+
+std::pair<float, float> AVehicleAIController::CalculateThrottleAndBrake(float TopSpeed) const
+{
+	return (ControlledVehicle->GetCurrentSpeed() >= TopSpeed) ? std::make_pair(0.0f, CalculateBrakeIntensity(CalculateTopSpeed())) : std::make_pair(1.0f, 0.0f);
+}
+
+float AVehicleAIController::CalculateBrakeIntensity(float TopSpeed) const
+{
+	const FVector2D SpeedRange(TopSpeed + 1.0f, TopSpeed + 5.0f);
+	const FVector2D IntensityRange(0.0f, 1.0f);
+	return FMath::GetMappedRangeValueClamped(SpeedRange, IntensityRange, ControlledVehicle->GetCurrentSpeed());
+}
+
+float AVehicleAIController::CalculateTopSpeed() const
+{
+	if(bIsOverrideTopSpeed)
+	{
+		return OverrideTopSpeed;
+	}
+	
+	const float AdditionalDistance = GetAdditionalDistanceForTopSpeed(ControlledVehicle->GetAISettings().SpeedRangeForTopSpeed,
+		ControlledVehicle->GetAISettings().DistanceRangeForTopSpeed);
+	const FRotator ClosestPointToTheSpline = GetClosestPointToTheSpline(AdditionalDistance);
+	const FRotator AngleOfSteering = GetAngleOfSteering(ClosestPointToTheSpline);
+	return GetTopSpeed(ControlledVehicle->GetAISettings().AngleRangeForTopSpeed, ControlledVehicle->GetAISettings().TopSpeedRange, AngleOfSteering);
+}
+
+float AVehicleAIController::GetAdditionalDistanceForTopSpeed(FVector2D SpeedRangeForTopSpeed,
+	FVector2D DistanceRangeForTopSpeed) const
+{
+	return FMath::GetMappedRangeValueClamped(SpeedRangeForTopSpeed, DistanceRangeForTopSpeed,
+		ControlledVehicle->GetCurrentSpeed());
+}
+
+float AVehicleAIController::GetTopSpeed(FVector2D AngleRangeForTopSpeed, FVector2D TopSpeedRange,
+	const FRotator& AngleOfSteering)
+{
+	return FMath::GetMappedRangeValueClamped(AngleRangeForTopSpeed, TopSpeedRange,
+		FMath::Abs(AngleOfSteering.Yaw));
+}
+
+void AVehicleAIController::CheckForOvertakes() 
+{
+    const FHitResult FrontHitResult = GetFrontHitResult();
+    const FHitResult LeftHitResult = GetLeftHitResult();
+    const FHitResult RightHitResult = GetRightHitResult();
+    
+    ProcessHit(FrontHitResult, LeftHitResult, RightHitResult);
+}
+
+void AVehicleAIController::ProcessHit(const FHitResult& FrontHitResult, const FHitResult& LeftHitResult, const FHitResult& RightHitResult)
+{
+	const bool bFrontHit = FrontHitResult.bBlockingHit && FrontHitResult.GetActor()->IsA<AVehiclePawn>();
+	const bool bLeftHit = LeftHitResult.bBlockingHit && LeftHitResult.GetActor()->IsA<AVehiclePawn>();
+	const bool bRightHit = RightHitResult.bBlockingHit && RightHitResult.GetActor()->IsA<AVehiclePawn>();
+
+	if (bFrontHit)
+	{
+		if (bLeftHit || bRightHit)
+		{
+			AVehiclePawn* VehicleInFront = Cast<AVehiclePawn>(FrontHitResult.GetActor());
+			if (VehicleInFront)
+			{
+				OverrideTopSpeed = VehicleInFront->GetCurrentSpeed();
+				bIsOverrideTopSpeed = true;
+			}
+		}
+		else if (!bIsChangingLane)
+		{
+			SideOfRoad = (SideOfRoad == 0) ? 1 : 0;
+			bIsChangingLane = true;
+			
+			GetWorld()->GetTimerManager().SetTimer(LaneChangeTimerHandle, FTimerDelegate::CreateLambda([this]()
+			{ bIsChangingLane = false; }), 2.0f, false);
+		}
+	}
+	else
+	{
+		bIsOverrideTopSpeed = false;
+	}
+}
+
+FHitResult AVehicleAIController::GetFrontHitResult()
+{
+    FHitResult FrontHitResult;
+    FVector StartLocation = ControlledVehicle->GetFrontOfVehicle();
+    FVector EndLocation = StartLocation + ControlledVehicle->GetActorForwardVector() * DetectionDistance;
+    
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(DetectionDistance / 2, 100.0f, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+    GetWorld()->SweepSingleByObjectType(FrontHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+    
+    return FrontHitResult;
+}
+
+FHitResult AVehicleAIController::GetLeftHitResult()
+{
+    constexpr float SideOffset = 200.0f;
+    
+    FHitResult LeftHitResult;
+    FVector StartLocation = ControlledVehicle->GetActorLocation();
+    FVector EndLocation = StartLocation - ControlledVehicle->GetActorRightVector() * (DetectionDistance + SideOffset);
+
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, (DetectionDistance + SideOffset) / 2, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+    GetWorld()->SweepSingleByObjectType(LeftHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+	
+    return LeftHitResult;
+}
+
+FHitResult AVehicleAIController::GetRightHitResult()
+{
+    constexpr float SideOffset = 200.0f;
+    
+    FHitResult RightHitResult;
+    FVector StartLocation = ControlledVehicle->GetActorLocation();
+    FVector EndLocation = StartLocation + ControlledVehicle->GetActorRightVector() * (DetectionDistance + SideOffset);
+
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, (DetectionDistance + SideOffset) / 2, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+    GetWorld()->SweepSingleByObjectType(RightHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+	
+    return RightHitResult;
+}
