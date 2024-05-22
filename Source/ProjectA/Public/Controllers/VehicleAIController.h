@@ -36,10 +36,11 @@ public:
 	float GetAdditionalDistanceForTopSpeed(FVector2D SpeedRangeForTopSpeed, FVector2D DistanceRangeForTopSpeed) const;
 	static float GetTopSpeed(FVector2D AngleRangeForTopSpeed, FVector2D TopSpeedRange, const FRotator& AngleOfSteering);
 
-	void CheckForOvertakes(); 
+	void CheckForOvertakes();
+	void ProcessHit(const FHitResult& FrontHitResult, const FHitResult& LeftHitResult, const FHitResult& RightHitResult);
 	FHitResult GetFrontHitResult();
-	void ProcessFrontHit(const FHitResult& FrontHitResult);
-
+	FHitResult GetLeftHitResult();
+	FHitResult GetRightHitResult();
 	
 private:
 	TWeakObjectPtr<AVehiclePawn> ControlledVehicle;
@@ -51,8 +52,11 @@ private:
 	
 	int32 SideOfRoad;
 	
-	float DetectionDistance = 500.0f;
+	float DetectionDistance = 700.0f;
 	
-	bool IsOverrideTopSpeed;
+	bool bIsOverrideTopSpeed;
 	float OverrideTopSpeed;
+
+	bool bIsChangingLane = false;
+	FTimerHandle LaneChangeTimerHandle;
 };

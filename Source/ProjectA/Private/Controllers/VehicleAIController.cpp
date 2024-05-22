@@ -55,7 +55,7 @@ FVector AVehicleAIController::GetClosestLocationToPath(const FVector& AILocation
 	// Checking for the presence of the USplineComponent component
 	if (Path)
 	{
-		const int SideOffset = SideOfRoadParam ? 500 : -500;
+		const int SideOffset = SideOfRoadParam ? 300 : -300;
 		const float Distance = Path->GetDistanceAlongSplineAtLocation(AILocation, ESplineCoordinateSpace::World);
 		const FVector RightVector = Path->GetRightVectorAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 		return Path->GetLocationAtDistanceAlongSpline(Distance + AdditionalDistance, ESplineCoordinateSpace::World) + RightVector * SideOffset;
@@ -124,7 +124,7 @@ float AVehicleAIController::CalculateBrakeIntensity(float TopSpeed) const
 
 float AVehicleAIController::CalculateTopSpeed() const
 {
-	if(IsOverrideTopSpeed)
+	if(bIsOverrideTopSpeed)
 	{
 		return OverrideTopSpeed;
 	}
@@ -152,38 +152,96 @@ float AVehicleAIController::GetTopSpeed(FVector2D AngleRangeForTopSpeed, FVector
 
 void AVehicleAIController::CheckForOvertakes() 
 {
-	const FHitResult FrontHitResult = GetFrontHitResult();
-	ProcessFrontHit(FrontHitResult);
+    const FHitResult FrontHitResult = GetFrontHitResult();
+    const FHitResult LeftHitResult = GetLeftHitResult();
+    const FHitResult RightHitResult = GetRightHitResult();
+    
+    ProcessHit(FrontHitResult, LeftHitResult, RightHitResult);
+}
+
+void AVehicleAIController::ProcessHit(const FHitResult& FrontHitResult, const FHitResult& LeftHitResult, const FHitResult& RightHitResult)
+{
+	const bool bFrontHit = FrontHitResult.bBlockingHit && FrontHitResult.GetActor()->IsA<AVehiclePawn>();
+	const bool bLeftHit = LeftHitResult.bBlockingHit && LeftHitResult.GetActor()->IsA<AVehiclePawn>();
+	const bool bRightHit = RightHitResult.bBlockingHit && RightHitResult.GetActor()->IsA<AVehiclePawn>();
+
+	if (bFrontHit)
+	{
+		if (bLeftHit || bRightHit)
+		{
+			AVehiclePawn* VehicleInFront = Cast<AVehiclePawn>(FrontHitResult.GetActor());
+			if (VehicleInFront)
+			{
+				OverrideTopSpeed = VehicleInFront->GetCurrentSpeed();
+				bIsOverrideTopSpeed = true;
+			}
+		}
+		else if (!bIsChangingLane)
+		{
+			SideOfRoad = (SideOfRoad == 0) ? 1 : 0;
+			bIsChangingLane = true;
+			
+			GetWorld()->GetTimerManager().SetTimer(LaneChangeTimerHandle, FTimerDelegate::CreateLambda([this]()
+			{ bIsChangingLane = false; }), 2.0f, false);
+		}
+	}
+	else
+	{
+		bIsOverrideTopSpeed = false;
+	}
 }
 
 FHitResult AVehicleAIController::GetFrontHitResult()
 {
-	FHitResult FrontHitResult;
-	FVector StartLocation = ControlledVehicle->GetFrontOfVehicle();
-	FVector EndLocation = StartLocation + ControlledVehicle->GetActorForwardVector() * DetectionDistance;
+    FHitResult FrontHitResult;
+    FVector StartLocation = ControlledVehicle->GetFrontOfVehicle();
+    FVector EndLocation = StartLocation + ControlledVehicle->GetActorForwardVector() * DetectionDistance;
+    
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(DetectionDistance / 2, 100.0f, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
 
-	FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, 180.0f, 180.0f));
-	
-	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
-
-	GetWorld()->SweepSingleByObjectType(FrontHitResult, StartLocation, EndLocation, FQuat::Identity,
-		FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
-	
-	return FrontHitResult;
+    GetWorld()->SweepSingleByObjectType(FrontHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+    
+    return FrontHitResult;
 }
 
-void AVehicleAIController::ProcessFrontHit(const FHitResult& FrontHitResult)
+FHitResult AVehicleAIController::GetLeftHitResult()
 {
-	if (FrontHitResult.bBlockingHit && FrontHitResult.GetActor()->IsA<AVehiclePawn>())
-	{
-		AVehiclePawn* VehicleInFront = Cast<AVehiclePawn>(FrontHitResult.GetActor());
-		OverrideTopSpeed = VehicleInFront->GetCurrentSpeed();
-		IsOverrideTopSpeed = true;
-	}
-	else
-	{
-		IsOverrideTopSpeed = false;
-	}
+    constexpr float SideOffset = 200.0f;
+    
+    FHitResult LeftHitResult;
+    FVector StartLocation = ControlledVehicle->GetActorLocation();
+    FVector EndLocation = StartLocation - ControlledVehicle->GetActorRightVector() * (DetectionDistance + SideOffset);
+
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, (DetectionDistance + SideOffset) / 2, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+    GetWorld()->SweepSingleByObjectType(LeftHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+	
+    return LeftHitResult;
 }
 
+FHitResult AVehicleAIController::GetRightHitResult()
+{
+    constexpr float SideOffset = 200.0f;
+    
+    FHitResult RightHitResult;
+    FVector StartLocation = ControlledVehicle->GetActorLocation();
+    FVector EndLocation = StartLocation + ControlledVehicle->GetActorRightVector() * (DetectionDistance + SideOffset);
+
+    FCollisionShape CollisionShape = FCollisionShape::MakeBox(FVector(400.0f, (DetectionDistance + SideOffset) / 2, 50.0f));
+    
+    FCollisionQueryParams CollisionParams;
+    CollisionParams.AddIgnoredActor(ControlledVehicle.Get());
+
+    GetWorld()->SweepSingleByObjectType(RightHitResult, StartLocation, EndLocation, ControlledVehicle->GetActorQuat(),
+        FCollisionObjectQueryParams(ECollisionChannel::ECC_Vehicle), CollisionShape, CollisionParams);
+	
+    return RightHitResult;
+}
