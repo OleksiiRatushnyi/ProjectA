@@ -7,6 +7,8 @@
 #include "VehiclePlayerController.generated.h"
 
 class UInputMappingContext;
+class AVehiclePawn;
+class UVehicleHUD;
 
 UCLASS()
 class PROJECTA_API AVehiclePlayerController : public APlayerController
@@ -17,6 +19,15 @@ protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	void AddInputMappingContext();
 
+	virtual void Tick(float Delta) override;
+	
+	TObjectPtr<AVehiclePawn> VehiclePawn;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = UI)
+	TSubclassOf<UVehicleHUD> VehicleUIClass;
+	
+	TObjectPtr<UVehicleHUD> VehicleUI;
+	
 private:
 	UPROPERTY(EditDefaultsOnly)
 	TObjectPtr<UInputMappingContext> InputMappingContext;

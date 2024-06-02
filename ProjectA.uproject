@@ -11,7 +11,8 @@
 			"AdditionalDependencies": [
 				"ChaosVehicles",
 				"Engine",
-				"AIModule"
+				"AIModule",
+				"UMG"
 			]
 		}
 	],

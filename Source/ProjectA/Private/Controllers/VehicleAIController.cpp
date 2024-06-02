@@ -55,7 +55,7 @@ FVector AVehicleAIController::GetClosestLocationToPath(const FVector& AILocation
 	// Checking for the presence of the USplineComponent component
 	if (Path)
 	{
-		const int SideOffset = SideOfRoadParam ? 300 : -300;
+		const int SideOffset = SideOfRoadParam ? 250 : -250;
 		const float Distance = Path->GetDistanceAlongSplineAtLocation(AILocation, ESplineCoordinateSpace::World);
 		const FVector RightVector = Path->GetRightVectorAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 		return Path->GetLocationAtDistanceAlongSpline(Distance + AdditionalDistance, ESplineCoordinateSpace::World) + RightVector * SideOffset;

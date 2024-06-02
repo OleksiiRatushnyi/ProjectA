@@ -129,4 +129,7 @@ private:
 
 	UPROPERTY(EditDefaultsOnly)
 	FAISettings AISettings;
+
+public:
+	FORCEINLINE const TObjectPtr<UChaosWheeledVehicleMovementComponent>& GetChaosVehicleMovement() const { return MovementComponent; }
 };
