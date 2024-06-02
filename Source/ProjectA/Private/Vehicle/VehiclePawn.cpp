@@ -120,12 +120,18 @@ void AVehiclePawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AVehiclePawn::OnThrottleAction(const FInputActionValue& Value)
 {
-	MovementComponent->SetThrottleInput(Value.Get<float>());
+	if(bIsMovemenetEnabled)
+	{
+		MovementComponent->SetThrottleInput(Value.Get<float>());
+	}
 }
 
 void AVehiclePawn::OnBrakeAction(const FInputActionValue& Value)
 {
-	MovementComponent->SetBrakeInput(Value.Get<float>());
+	if(bIsMovemenetEnabled)
+	{
+		MovementComponent->SetBrakeInput(Value.Get<float>());
+	}
 }
 
 void AVehiclePawn::OnHandbrakeAction(const FInputActionValue& Value)
@@ -135,7 +141,10 @@ void AVehiclePawn::OnHandbrakeAction(const FInputActionValue& Value)
 
 void AVehiclePawn::OnSteeringAction(const FInputActionValue& Value)
 {
-	MovementComponent->SetSteeringInput(Value.Get<float>());
+	if(bIsMovemenetEnabled)
+	{
+		MovementComponent->SetSteeringInput(Value.Get<float>());
+	}
 }
 
 /*
@@ -143,7 +152,10 @@ void AVehiclePawn::OnSteeringAction(const FInputActionValue& Value)
  */
 void AVehiclePawn::OnThrottleAction(float Value)
 {
-	MovementComponent->SetThrottleInput(Value);
+	if(bIsMovemenetEnabled)
+	{
+		MovementComponent->SetThrottleInput(Value);
+	}
 }
 
 void AVehiclePawn::OnBrakeAction(float Value)
@@ -153,5 +165,8 @@ void AVehiclePawn::OnBrakeAction(float Value)
 
 void AVehiclePawn::OnSteeringAction(float Value)
 {
-	MovementComponent->SetSteeringInput(Value);
+	if(bIsMovemenetEnabled)
+	{
+		MovementComponent->SetSteeringInput(Value);
+	}
 }

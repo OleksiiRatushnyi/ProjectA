@@ -118,6 +118,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	TObjectPtr<USceneComponent> FrontPoint;
 
+	UPROPERTY(BlueprintReadWrite)
+	bool bIsMovemenetEnabled = false;
+
 private:
 	TObjectPtr<UChaosWheeledVehicleMovementComponent> MovementComponent;
 
